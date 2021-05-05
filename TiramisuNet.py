@@ -16,7 +16,6 @@ def TiramisuNet(
         growth_rate=16,
         n_pool=5,
         dropout_p=0.2
-
 ):
     if n_layers_per_block is None:
         n_layers_per_block = [4, 5, 7, 10, 12, 15, 12, 10, 7, 5, 4]
@@ -64,11 +63,11 @@ def TiramisuNet(
         stack = concatenate([stack, l], axis=-1)
 
     #######################
-    #   Upsampling path   #
+    #   Up-sampling path  #
     #######################
-    print("Upsampling")
+    # print(f"Before Upsampling {stack.type_spec.shape}")
     for i in range(n_pool):
-        print(f"block {i + 1}")
+        # print(f"block {i + 1}")
         # Transition Up ( Upsampling + concatenation with the skip connection)
         n_filters_keep = growth_rate * n_layers_per_block[n_pool + i]
         stack = transition_up(skip_connection_list[i], block_to_upsample, n_filters_keep)
@@ -76,7 +75,7 @@ def TiramisuNet(
         # Dense Block
         block_to_upsample = []
         for j in range(n_layers_per_block[n_pool + i + 1]):
-            print(f"layer {j + 1} ")
+            # print(f"layer {j + 1} ")
             l = layer(stack, growth_rate, dropout_p=dropout_p)
             block_to_upsample.append(l)
             stack = concatenate([stack, l], axis=-1)
@@ -89,7 +88,8 @@ def TiramisuNet(
 
 
 model = TiramisuNet(
-    input_shape=(None, None, 3)
+    # input_shape=(480,480, 3),
+    input_shape=(460, 460, 3)
     , n_classes=274
 )
 model.summary()
@@ -97,7 +97,7 @@ model.summary()
 model.compile(optimizer='adam',
               loss=SparseCategoricalCrossentropy(from_logits=True),
               metrics=['accuracy'])
-
+#
 history = model.fit(get_train_data_generator(),
                     steps_per_epoch=100,
                     epochs=10,

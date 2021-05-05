@@ -1,5 +1,5 @@
 from tensorflow.keras.layers import Conv2D, BatchNormalization, Dropout, MaxPool2D, \
-    Conv2DTranspose, concatenate, Activation
+    Conv2DTranspose, concatenate, Activation, Cropping2D
 
 import tensorflow as tf
 
@@ -16,6 +16,7 @@ def layer(inputs, n_filters, filter_size=3, dropout_p=0.2):
     # tf.shape(inputs)
 
     l = BatchNormalization()(inputs)
+    l = Activation("relu")(l)
     l = Conv2D(n_filters, filter_size, padding='same', kernel_initializer="he_uniform")(l)
     if dropout_p != 0.0:
         return Dropout(dropout_p)(l)
@@ -46,9 +47,11 @@ def transition_up(skip_connection, block_to_up_sample, n_filters_keep):
     """
     l = concatenate(block_to_up_sample, axis=-1)
     l = Conv2DTranspose(n_filters_keep, kernel_size=3, strides=2, kernel_initializer="he_uniform")(l)
-    print(f"block_to_up_sample shape {tf.shape(block_to_up_sample)}")
-    print(f"l shape {tf.shape(l)}")
-    print(f"skip_connection shape {tf.shape(skip_connection)}")
+    if l.type_spec.shape[1] != skip_connection.type_spec.shape[1]:
+        l = Cropping2D(cropping=((0, 1), (0, 1)))(l)
+    # print(f"block_to_up_sample shape {tf.shape(block_to_up_sample)}")
+    # print(f"l shape {tf.shape(l)}")
+    # print(f"skip_connection shape {tf.shape(skip_connection)}")
     return concatenate([l, skip_connection], axis=-1)  # cropping=[None, None, 'center', 'center']
 
 
