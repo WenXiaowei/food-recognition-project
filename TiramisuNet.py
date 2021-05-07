@@ -86,7 +86,7 @@ def TiramisuNet(
 
     return Model(inputs=inputs, outputs=soft_max(stack, n_classes))
 
-
+'''
 model = TiramisuNet(
     # input_shape=(480,480, 3),
     input_shape=(460, 460, 3)
@@ -111,3 +111,4 @@ history = model.fit(get_train_data_generator(),
 # dropout rate 0.2
 # grow_rate = 16
 # n_pool = 5
+'''
