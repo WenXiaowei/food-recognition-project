@@ -1,11 +1,7 @@
-import tensorflow
 from tensorflow.python.keras.models import Model
-
 from tiramisu_layers import *
 from tensorflow.keras.layers import concatenate, Input
-from tensorflow.keras.losses import SparseCategoricalCrossentropy
 import tensorflow as tf
-from data_generators import *
 
 
 def TiramisuNet(
@@ -22,7 +18,7 @@ def TiramisuNet(
 
     inputs = Input(input_shape)
 
-    print(f"{tf.shape(inputs)}")
+    # print(f"{tf.shape(inputs)}")
     # We perform a first convolution. All the features maps will be stored in the tensor called stack (the Tiramisu)
     stack = Conv2D(n_filters_first_conv, kernel_size=3, padding='same', kernel_initializer="he_uniform")(inputs)
     # The number of feature maps in the stack is stored in the variable n_filters
