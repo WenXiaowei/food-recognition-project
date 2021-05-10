@@ -131,3 +131,5 @@ dmypy.json
 # images and annos
 images/
 annotations/
+
+.idea/
