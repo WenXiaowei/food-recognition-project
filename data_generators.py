@@ -1,120 +1,209 @@
-from pycocotools.coco import COCO
-import numpy as np
-import random
-import os
-import cv2
-import skimage.io as io
-### For visualizing the outputs ###
-import matplotlib.pyplot as plt
-from keras.preprocessing.image import ImageDataGenerator
-
-
-# % matplotlib
-# inline
-
-
 def getClassName(classID, cats):
     for i in range(len(cats)):
-        if cats[i]['id'] == classID:
+        if cats[i]['id']==classID:
             return cats[i]['name']
     return None
 
-
 def getImage(imageObj, img_folder, input_image_size):
     # Read and normalize an image
-    train_img = io.imread(img_folder + '/' + imageObj['file_name']) / 255.0
+    train_img = io.imread(img_folder + '/' + imageObj['file_name'])/255.0
     # Resize
     train_img = cv2.resize(train_img, input_image_size)
-    if (len(train_img.shape) == 3 and train_img.shape[2] == 3):  # If it is a RGB 3 channel image
+    if (len(train_img.shape)==3 and train_img.shape[2]==3): # If it is a RGB 3 channel image
         return train_img
-    else:  # To handle a black and white image, increase dimensions to 3
-        stacked_img = np.stack((train_img,) * 3, axis=-1)
+    else: # To handle a black and white image, increase dimensions to 3
+        stacked_img = np.stack((train_img,)*3, axis=-1)
         return stacked_img
+    
 
+"""
+input
+    catAlliasList: list - list of dict of format {categoriId: id_of_class}
+    key: int - the real category_id
+    
+output
+     int, the associated id to the category_id
 
+"""
 def getCatAllias(catAlliasList, key):
     for al in catAlliasList:
         if key in al:
-            return al[key]
+              return al[key]
 
-    raise NameError('No such key in list')
+    raise NameError('No such key in list')    
 
-
+    
+"""
+input
+    catIDs: list - list of categories ids
+output
+     list of dict of format {categoriId: id_of_class}
+     
+     
+     The function associate the category id, which might be not numerically ordered. 
+     The associated id will be used in forming the output matrix.
+     
+     For an output matrix y of shape (batch_size, m, n, n_classes), the only non-0 matrix 
+     for a certein batch will at the position [batch_number(!!),:,:,id_of_class]
+"""
 def createCatAllias(catIDs):
     l = []
-    i = 1
+    i=1
     for id in catIDs:
-        l.append({id: i})
+        l.append({id:i})
         i += 1
     return l
 
+
+"""
+input 
+    imageObj: dict - Coco image annotaion
+    coco: Coco() - Coco object
+    catIDs: list - list of categories ids
+    catAllias : list - list of dict of format {categoriId: id_of_class}
+    input_image_size: tuple - desired image size (width, height)
+    
+output
+    masks: array - (width, height, n_cat) where n_cat is number of cotegories that are on the photo
+    cats: list - list of id assocciated with categories id taken from catAllias
+    
+
+"""
 
 def getMasksWithCats(imageObj, coco, catIDs, catAllias, input_image_size):
     annIds = coco.getAnnIds(imageObj['id'], catIds=catIDs, iscrowd=None)
     anns = coco.loadAnns(annIds)
     cats = []
-    train_mask = np.zeros((input_image_size[0], input_image_size[0], len(anns)))
+    masks = np.zeros((input_image_size[0], input_image_size[0], len(anns)))
     for a in range(len(anns)):
         ann = anns[a]
         cat_value = getCatAllias(catAllias, ann['category_id'])
         mask = cv2.resize(coco.annToMask(ann), input_image_size)
-        train_mask[:, :, a] = mask
+        masks[:,:,a] = mask
         cats.append(cat_value)
 
-    return train_mask, cats
+    return masks, cats
+    
+def generateData(images, classes, coco, folder, input_image_size, catAllias, mode='train', batch_size=16):
+    img_folder = '{}/images/{}'.format(folder, mode)
+    dataset_size = len(images)
+    catIds = coco.getCatIds(catNms=classes)
+    X = []
+    y = []
+    for imageObj in images:
+        X.append(getImage(imageObj, img_folder, input_image_size))
+        y.append(getNCLassMask(imageObj, coco, catIds, catAllias, input_image_size))
+        
+    X = np.array(X)
+    y = np.array(y)
+    
+    return X, y
 
 
-def cocoDataGeneratorWithAug(images, coco, folder, input_image_size, catAllias, mode='train', batch_size=16):
+
+"""
+input
+
+    coco: COCO() - A COCO class with annotions of desired dataset
+    images: lsit - list of images obtained from COCO.loadImgs()
+    folder: String - root folder with coco images
+    input_image_size: tuple - desired image size (width, height)
+    catAllias : list - list of dict of format {categoriId: id_of_class}
+    mode: String - "train" | "val" | "test"
+    batch_size: Int - number of augmented images on output after calling next()
+    
+output
+
+    python generator function
+    
+
+    the function is a python generator function which on calling next() will return
+    
+    X: array of augmented images of size (batch_size, n, m, 3), where n is width and m is height
+    y: array of equally augmented masks of size (batch_size, n, m, n_classes), 
+            array will be 0 for all the 4th dimensions that are not the id number of the category
+            
+    every batch is generated by 1 image on which is going to be applied the keras Image Generator
+
+"""
+
+def cocoDataGeneratorWithAug(coco, images, folder, input_image_size, catAllias, mode='train', batch_size=16):
+    
     seed = 32
-    augGeneratorArgs = dict(featurewise_center=False,
-                            samplewise_center=False,
-                            rotation_range=5,
-                            width_shift_range=0.01,
-                            height_shift_range=0.01,
-                            brightness_range=(0.8, 1.2),
-                            shear_range=0.01,
-                            zoom_range=[1, 1.25],
-                            horizontal_flip=True,
-                            vertical_flip=False,
-                            fill_mode='reflect',
-                            data_format='channels_last')
+    augGeneratorArgs = dict(featurewise_center = False, 
+                        samplewise_center = False,
+                        rotation_range = 5, 
+                        width_shift_range = 0.01, 
+                        height_shift_range = 0.01, 
+                        brightness_range = (0.8,1.2),
+                        shear_range = 0.01,
+                        zoom_range = [1, 1.25],  
+                        horizontal_flip = True, 
+                        vertical_flip = False,
+                        fill_mode = 'reflect',
+                        data_format = 'channels_last') # the arguments used by keras ImageGenerator for images
+    
     augGeneratorArgs_mask = augGeneratorArgs.copy()
-    _ = augGeneratorArgs_mask.pop('brightness_range', None)
+    _ = augGeneratorArgs_mask.pop('brightness_range', None) # the arguments used by keras ImageGenerator for mask (same but without brightness)
+
+
     # Initialize the mask data generator with modified args
     image_gen = ImageDataGenerator(**augGeneratorArgs)
     mask_gen = ImageDataGenerator(**augGeneratorArgs_mask)
-    np.random.seed(seed if seed is not None else np.random.choice(range(9999)))
-    idx = 0
+    
+    np.random.seed(seed) # to avoid randomness between image and masks
+    
+    # coco parameters
+    idx = 0 # index of desired image that will generate the batch
     img_folder = '{}/images/{}'.format(folder, mode)
     dataset_size = len(images)
-    catIds = coco.getCatIds()
-    n_classes = len(catIds)
-    while True:
+    #catIds = coco.getCatIds()
+    n_classes = len(catAllias)+1
+    # debug
+    start_time = datetime.now()
+    start_m = memory_profiler.memory_usage()[0]
+    
+    # infinite loop is required by keras model
+    while(True):       
+        
+        
+        
+        print(f"\n{idx}")
+        print("passed: {} | memory used: {}".format(datetime.now()-start_time, memory_profiler.memory_usage()[0]-start_m))
+        start_time = datetime.now()
+        start_m = memory_profiler.memory_usage()[0]
+        
         imageObj = images[idx]
-        img = getImage(imageObj, img_folder, input_image_size)
-        im_masks, im_cats = getMasksWithCats(imageObj, coco, catIDs, catAllias, input_image_size)
+        img = getImage(imageObj, img_folder, input_image_size) #image_array
+        
+        #getMasksWithCats return array of masks for each category on the image and a list of squeezed categories 
+        im_masks, im_cats = getMasksWithCats(imageObj, coco, catIDs, catAllias, input_image_size) 
         n_masks = im_masks.shape[2]
-
-        # print(im_cats)
-        X = np.zeros((batch_size, input_image_size[0], input_image_size[1], 3)).astype('float')
-        y = np.zeros((batch_size, input_image_size[0], input_image_size[1], n_classes)).astype('float')
-
+        
+        #  output
+        X = np.zeros((batch_size, input_image_size[0], input_image_size[1],3)).astype('float')
+        y = np.zeros((batch_size, input_image_size[0], input_image_size[1],n_classes)).astype('float')
+        
+        
+        
         seed = np.random.choice(range(9999))
-        # keep the seeds syncronized otherwise the augmentation of the images
+        # keep the seeds syncronized otherwise the augmentation of the images 
         # will end up different from the augmentation of the masks
-        g_x = image_gen.flow(img.reshape((1,) + img.shape),
-                             batch_size=batch_size,
-                             seed=seed)
-
-        # print((mm.reshape((1,)+mm.shape+(1,)).shape))
-        g_ys = [mask_gen.flow(im_masks[None, :, :, mn, None],
-                              batch_size=batch_size,
-                              seed=seed) for mn in range(n_masks)]
-
+        
+        # image generator
+        g_x = image_gen.flow(img.reshape((1,)+img.shape), 
+                             batch_size = batch_size, 
+                             seed = seed)
+        
+        # masks generators
+        g_ys = [mask_gen.flow( im_masks[None,:,:,mn,None], 
+                             batch_size = batch_size, 
+                             seed = seed) for mn in range(n_masks)]
+        
         for batch_num in range(batch_size):
-            X[batch_num] = g_x.next() / 255.0
+            X[batch_num] = g_x.next()/255.0
             for i in range(n_masks):
-                y[batch_num, :, :, im_cats[i]] = g_ys[i].next()[:, :, :, 0]
+                y[batch_num, :, :] = g_ys[i].next()[:, :]
 
         yield X, y
 
@@ -124,43 +213,52 @@ def cocoDataGeneratorWithAug(images, coco, folder, input_image_size, catAllias, 
             idx += 1
 
 
-ann_dir = os.path.join(os.getcwd(), "./annotations")
+def collectImagesByClasses(coco, filterClasses):
+    images = []
+    if filterClasses!=None:
+        # iterate for each individual class in the list
+        for className in filterClasses:
+            # get all images containing given class
+            catIds = coco.getCatIds(catNms=className)
+            imgIds = coco.getImgIds(catIds=catIds)
+            images += coco.loadImgs(imgIds)
+    else:
+        imgIds = coco.getImgIds()
+        images = coco.loadImgs(imgIds)
 
-ann_file_train = ann_dir + "/train.json"
-ann_file_val = ann_dir + "/val.json"
-coco_train = COCO(ann_file_train)
-coco_val = COCO(ann_file_val)
+    # Now, filter out the repeated images    
+    unique_images = []
+    for i in range(len(images)):
+        if images[i] not in unique_images:
+            unique_images.append(images[i])
 
-# locate all categories
-catIDs = np.sort(coco_train.getCatIds())
-cats = coco_train.loadCats(catIDs)
+    dataset_size = len(unique_images)
+    
+    print("Number of images containing the filter classes:", dataset_size)
+    return unique_images
 
-# training coco images
-imgIds_train = coco_train.getImgIds()
-images_train = coco_train.loadImgs(imgIds_train)
-n_train_imgs = len(images_train)
-
-# validation coco images
-imgIds_val = coco_val.getImgIds()
-images_val = coco_val.loadImgs(imgIds_val)
-n_val_imgs = len(images_val)
-
-# data generator parameters
-batch_size = 16
-img_height = images_train[0]['height']
-img_width = images_train[0]['width']
-imgs_size = (img_width, img_height)
-cat_allias = createCatAllias(catIDs)
-
-
-# training data generator\
-def get_train_data_generator():
-    dg_train = cocoDataGeneratorWithAug(images_train, coco_train, os.getcwd(), imgs_size, cat_allias,
-                                        batch_size=batch_size)
-    return dg_train
-
-
-# validation data generator
-def get_val_data_generator():
-    dg_val = cocoDataGeneratorWithAug(images_val, coco_val, os.getcwd(), imgs_size, cat_allias, batch_size=batch_size)
-    return dg_val
+def fisrtNMostFreqCat(coco, n):
+    catsIds = coco.getCatIds()
+    cats = coco.loadCats(catsIds)
+    annIds = coco.getAnnIds()
+    anns = coco.loadAnns(annIds)
+    cat_freq = []
+    while anns:
+        cat = anns[0]['category_id']
+        f = 0
+        for ann in anns:
+            if ann['category_id'] == cat:
+                f += 1
+        
+        cat_freq.append({"cat_id":cat, "freq": f})
+        
+        anns = [x for x in anns if x['category_id'] != cat]
+        
+    
+    cat_freq = sorted(cat_freq, key=lambda k: k["freq"], reverse=True)
+    cat_freq = cat_freq[0:n]
+    output = []
+    for c in cat_freq:
+        output.append(getClassName(c["cat_id"], cats))
+    return output
+    
