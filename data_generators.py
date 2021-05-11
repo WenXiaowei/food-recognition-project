@@ -30,7 +30,7 @@ def getCatAllias(catAlliasList, key):
         if key in al:
               return al[key]
 
-    raise NameError('No such key in list')    
+    return 0 
 
     
 """
@@ -74,15 +74,15 @@ def getMasksWithCats(imageObj, coco, catIDs, catAllias, input_image_size):
     annIds = coco.getAnnIds(imageObj['id'], catIds=catIDs, iscrowd=None)
     anns = coco.loadAnns(annIds)
     cats = []
-    masks = np.zeros((input_image_size[0], input_image_size[0], len(anns)))
+    masks = np.zeros((input_image_size[0], input_image_size[0]))
     for a in range(len(anns)):
         ann = anns[a]
         cat_value = getCatAllias(catAllias, ann['category_id'])
-        mask = cv2.resize(coco.annToMask(ann), input_image_size)
-        masks[:,:,a] = mask
+        new_mask = cv2.resize(coco.annToMask(ann)*cat_value, input_image_size)
+        masks = np.maximum(new_mask, masks)
         cats.append(cat_value)
 
-    return masks, cats
+    return masks.reshape(input_image_size + (1,)), cats
     
 def generateData(images, classes, coco, folder, input_image_size, catAllias, mode='train', batch_size=16):
     img_folder = '{}/images/{}'.format(folder, mode)
@@ -127,7 +127,40 @@ output
 
 """
 
-def cocoDataGeneratorWithAug(coco, images, folder, input_image_size, catAllias, mode='train', batch_size=16):
+def cocoDataGenerator(coco, images, folder, input_image_size, catAllias, catIds, mode='train', batch_size=16):
+    # coco parameters
+    c = 0 # index of desired image that will generate the batch
+    img_folder = '{}/images/{}'.format(folder, mode)
+    dataset_size = len(images)
+    #catIds = coco.getCatIds()
+    n_classes = len(catAllias)+1
+    
+    
+    while(True):
+        img = np.zeros((batch_size, input_image_size[0], input_image_size[1], 3)).astype('float')
+        mask = np.zeros((batch_size, input_image_size[0], input_image_size[1], 1)).astype('float')
+
+        for i in range(c, c+batch_size): #initially from 0 to batch_size, when c = 0
+            imageObj = images[i]
+            
+            ### Retrieve Image ###
+            train_img = getImage(imageObj, img_folder, input_image_size)
+            
+            train_mask, m_cats = getMasksWithCats(imageObj, coco, catIds, catAllias, input_image_size)
+                           
+            # Add to respective batch sized arrays
+            img[i-c] = train_img
+            mask[i-c] = train_mask
+            
+        c+=batch_size
+        if(c + batch_size >= dataset_size):
+            c=0
+            random.shuffle(images)
+        yield img, mask
+
+
+
+def cocoDataGeneratorWithAug(coco, images, folder, input_image_size, catAllias, catIds, mode='train', batch_size=16):
     
     seed = 32
     augGeneratorArgs = dict(featurewise_center = False, 
@@ -157,7 +190,7 @@ def cocoDataGeneratorWithAug(coco, images, folder, input_image_size, catAllias, 
     idx = 0 # index of desired image that will generate the batch
     img_folder = '{}/images/{}'.format(folder, mode)
     dataset_size = len(images)
-    #catIds = coco.getCatIds()
+    catIds = coco.getCatIds()
     n_classes = len(catAllias)+1
     # debug
     start_time = datetime.now()
@@ -168,8 +201,8 @@ def cocoDataGeneratorWithAug(coco, images, folder, input_image_size, catAllias, 
         
         
         
-        print(f"\n{idx}")
-        print("passed: {} | memory used: {}".format(datetime.now()-start_time, memory_profiler.memory_usage()[0]-start_m))
+        #print(f"\n{idx}")
+        #print("passed: {} | memory used: {}".format(datetime.now()-start_time, memory_profiler.memory_usage()[0]-start_m))
         start_time = datetime.now()
         start_m = memory_profiler.memory_usage()[0]
         
@@ -177,12 +210,12 @@ def cocoDataGeneratorWithAug(coco, images, folder, input_image_size, catAllias, 
         img = getImage(imageObj, img_folder, input_image_size) #image_array
         
         #getMasksWithCats return array of masks for each category on the image and a list of squeezed categories 
-        im_masks, im_cats = getMasksWithCats(imageObj, coco, catIDs, catAllias, input_image_size) 
+        im_masks, im_cats = getMasksWithCats(imageObj, coco, catIds, catAllias, input_image_size) 
         n_masks = im_masks.shape[2]
         
         #  output
         X = np.zeros((batch_size, input_image_size[0], input_image_size[1],3)).astype('float')
-        y = np.zeros((batch_size, input_image_size[0], input_image_size[1],n_classes)).astype('float')
+        y = np.zeros((batch_size, input_image_size[0], input_image_size[1],1)).astype('float')
         
         
         
@@ -196,19 +229,25 @@ def cocoDataGeneratorWithAug(coco, images, folder, input_image_size, catAllias, 
                              seed = seed)
         
         # masks generators
-        g_ys = [mask_gen.flow( im_masks[None,:,:,mn,None], 
+        g_ys = image_gen.flow(im_masks.reshape((1,)+im_masks.shape), 
                              batch_size = batch_size, 
-                             seed = seed) for mn in range(n_masks)]
-        
+                             seed = seed)
         for batch_num in range(batch_size):
             X[batch_num] = g_x.next()/255.0
+            y[batch_num] = g_ys.next()/255.0
+            '''
             for i in range(n_masks):
-                y[batch_num, :, :] = g_ys[i].next()[:, :]
+                m = g_ys[i].next()
+                m[m>0.5] = im_cats[i]
+                 = m#g_ys[i].next()[:, :]
 
+            '''
+            
         yield X, y
 
         if idx >= dataset_size:
             idx = 0
+            random.shuffle(images)
         else:
             idx += 1
 
