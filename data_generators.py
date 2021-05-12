@@ -134,28 +134,34 @@ def cocoDataGenerator(coco, images, folder, input_image_size, catAllias, catIds,
     dataset_size = len(images)
     #catIds = coco.getCatIds()
     n_classes = len(catAllias)+1
-    
+    lock = threading.Lock()
     
     while(True):
-        img = np.zeros((batch_size, input_image_size[0], input_image_size[1], 3)).astype('float')
-        mask = np.zeros((batch_size, input_image_size[0], input_image_size[1], 1)).astype('float')
+        with lock:
+            img = np.zeros((batch_size, input_image_size[0], input_image_size[1], 3)).astype('float')
+            mask = np.zeros((batch_size, input_image_size[0], input_image_size[1], 1)).astype('float')
 
-        for i in range(c, c+batch_size): #initially from 0 to batch_size, when c = 0
-            imageObj = images[i]
-            
-            ### Retrieve Image ###
-            train_img = getImage(imageObj, img_folder, input_image_size)
-            
-            train_mask, m_cats = getMasksWithCats(imageObj, coco, catIds, catAllias, input_image_size)
-                           
-            # Add to respective batch sized arrays
-            img[i-c] = train_img
-            mask[i-c] = train_mask
-            
-        c+=batch_size
-        if(c + batch_size >= dataset_size):
-            c=0
-            random.shuffle(images)
+            for i in range(c, c+batch_size): #initially from 0 to batch_size, when c = 0
+                imageObj = images[i]
+
+                ### Retrieve Image ###
+                train_img = getImage(imageObj, img_folder, input_image_size)
+
+                train_mask, m_cats = getMasksWithCats(imageObj, coco, catIds, catAllias, input_image_size)
+
+                # Add to respective batch sized arrays
+                img[i-c] = train_img
+                mask[i-c] = train_mask
+                
+                break
+            else:
+                return
+
+            c+=batch_size
+            if(c + batch_size >= dataset_size):
+                c=0
+                random.shuffle(images)
+                
         yield img, mask
 
 
@@ -245,7 +251,7 @@ def cocoDataGeneratorWithAug(coco, images, folder, input_image_size, catAllias, 
             
         yield X, y
 
-        if idx >= dataset_size:
+        if idx > dataset_size:
             idx = 0
             random.shuffle(images)
         else:
