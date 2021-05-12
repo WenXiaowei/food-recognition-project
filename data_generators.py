@@ -153,9 +153,7 @@ def cocoDataGenerator(coco, images, folder, input_image_size, catAllias, catIds,
                 img[i-c] = train_img
                 mask[i-c] = train_mask
                 
-                break
-            else:
-                return
+             
 
             c+=batch_size
             if(c + batch_size >= dataset_size):
@@ -257,6 +255,14 @@ def cocoDataGeneratorWithAug(coco, images, folder, input_image_size, catAllias, 
         else:
             idx += 1
 
+def getClassByAllias(label, cats, catAllias):
+    for allias in catAllias:
+        for key in allias:
+            if allias[key] == label:
+                return getClassName(key, cats)
+
+    return "background"
+
 
 def collectImagesByClasses(coco, filterClasses):
     images = []
@@ -306,4 +312,14 @@ def fisrtNMostFreqCat(coco, n):
     for c in cat_freq:
         output.append(getClassName(c["cat_id"], cats))
     return output
-    
+def visuallizeMaskWithLabels(mask, cats, catAllias):
+    mask = np.rint(mask)
+    values, counts = np.unique(mask, return_counts=True)
+    values = values[counts>1000]
+    im = plt.imshow(mask)
+    colors = [ im.cmap(im.norm(value)) for value in values]
+    # create a patch (proxy artist) for every color 
+    patches = [ mpatches.Patch(color=colors[i], label=getClassByAllias(values[i], cats, catAllias)) for i in range(len(values)) ]
+    # put those patched as legend-handles into the legend
+    plt.legend(handles=patches, bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0. )
+    plt.show()
