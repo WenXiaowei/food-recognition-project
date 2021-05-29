@@ -18,4 +18,4 @@ The final scoring parameters are computed by averaging over all the precision an
 See also this [discussion](https://discourse.aicrowd.com/t/evaluation-criteria/2668).
 
 ## Project development
-We decide to implement this project by using "One hundre layers Tiramisu", for more details, you may want to read the [report](./Report.pdf)
+We decide to implement this project by using "One hundred layers Tiramisu", for more details, you may want to read the [report](./Report.pdf)
