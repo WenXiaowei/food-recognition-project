@@ -4,6 +4,7 @@ opencv-python~=3.4.2.16
 matplotlib~=3.4.1
 tensorflow~=2.4.1
 tensorflow-gpu~=2.4.1
+pandas~=1.2.4
 pycocotools~=2.0.2
 Keras~=2.4.3
 ipython~=7.22.0
