@@ -18,7 +18,6 @@ def TiramisuNet(
 
     inputs = Input(input_shape)
 
-    # print(f"{tf.shape(inputs)}")
     # We perform a first convolution. All the features maps will be stored in the tensor called stack (the Tiramisu)
     stack = Conv2D(n_filters_first_conv, kernel_size=3, padding='same', kernel_initializer="he_uniform")(inputs)
     # The number of feature maps in the stack is stored in the variable n_filters
@@ -61,9 +60,8 @@ def TiramisuNet(
     #######################
     #   Up-sampling path  #
     #######################
-    # print(f"Before Upsampling {stack.type_spec.shape}")
+    
     for i in range(n_pool):
-        # print(f"block {i + 1}")
         # Transition Up ( Upsampling + concatenation with the skip connection)
         n_filters_keep = growth_rate * n_layers_per_block[n_pool + i]
         stack = transition_up(skip_connection_list[i], block_to_upsample, n_filters_keep)
@@ -71,7 +69,6 @@ def TiramisuNet(
         # Dense Block
         block_to_upsample = []
         for j in range(n_layers_per_block[n_pool + i + 1]):
-            # print(f"layer {j + 1} ")
             l = layer(stack, growth_rate, dropout_p=dropout_p)
             block_to_upsample.append(l)
             stack = concatenate([stack, l], axis=-1)
@@ -81,30 +78,3 @@ def TiramisuNet(
     #####################
 
     return Model(inputs=inputs, outputs=soft_max(stack, n_classes))
-
-'''
-model = TiramisuNet(
-    # input_shape=(480,480, 3),
-    input_shape=(460, 460, 3)
-    , n_classes=274
-)
-model.summary()
-
-model.compile(optimizer='adam',
-              loss=SparseCategoricalCrossentropy(from_logits=True),
-              metrics=['accuracy'])
-#
-history = model.fit(get_train_data_generator(),
-                    steps_per_epoch=100,
-                    epochs=10,
-                    validation_data=get_val_data_generator(),
-                    validation_steps=50)
-
-# to compile with RMSprop
-# learning rate 1e-3
-# exponential decay of 0.995 after each epoch
-# regularize with a weight decay of 1e-4
-# dropout rate 0.2
-# grow_rate = 16
-# n_pool = 5
-'''

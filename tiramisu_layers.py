@@ -1,5 +1,5 @@
 from tensorflow.keras.layers import Conv2D, BatchNormalization, Dropout, MaxPool2D, \
-    Conv2DTranspose, concatenate, Activation, Cropping2D
+    Conv2DTranspose, concatenate, Activation, Cropping2D, ZeroPadding2D
 
 import tensorflow as tf
 
@@ -13,7 +13,6 @@ def layer(inputs, n_filters, filter_size=3, dropout_p=0.2):
     :param dropout_p: the DropOut of the DropOut layer
     :return: the block of layers [BatchNormalization, ReLu, Conv2D, Dropout]
     """
-    # tf.shape(inputs)
 
     l = BatchNormalization()(inputs)
     l = Activation("relu")(l)
@@ -47,11 +46,17 @@ def transition_up(skip_connection, block_to_up_sample, n_filters_keep):
     """
     l = concatenate(block_to_up_sample, axis=-1)
     l = Conv2DTranspose(n_filters_keep, kernel_size=3, strides=2, kernel_initializer="he_uniform")(l)
+
     if l.type_spec.shape[1] != skip_connection.type_spec.shape[1]:
-        l = Cropping2D(cropping=((0, 1), (0, 1)))(l)
-    # print(f"block_to_up_sample shape {tf.shape(block_to_up_sample)}")
-    # print(f"l shape {tf.shape(l)}")
-    # print(f"skip_connection shape {tf.shape(skip_connection)}")
+        diff = abs(l.type_spec.shape[1] - skip_connection.type_spec.shape[1])
+
+        if diff % 2 == 0:
+            diff = int(diff / 2)
+            skip_connection = ZeroPadding2D(padding=((diff, diff), (diff, diff)))(skip_connection)
+        else:
+            diff = int((diff + 1) / 2)
+            skip_connection = ZeroPadding2D(padding=((diff - 1, diff), (diff - 1, diff)))(skip_connection)
+
     return concatenate([l, skip_connection], axis=-1)  # cropping=[None, None, 'center', 'center']
 
 

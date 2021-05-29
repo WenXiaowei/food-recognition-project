@@ -16,3 +16,6 @@ The [dataset](https://www.aicrowd.com/challenges/food-recognition-challenge/data
 The final scoring parameters are computed by averaging over all the precision and recall values for all known annotations in the ground truth.  
 
 See also this [discussion](https://discourse.aicrowd.com/t/evaluation-criteria/2668).
+
+## Project development
+We decide to implement this project by using "One hundre layers Tiramisu", for more details, you may want to read the [report](./Report.pdf)
