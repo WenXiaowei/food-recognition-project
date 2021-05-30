@@ -19,3 +19,10 @@ See also this [discussion](https://discourse.aicrowd.com/t/evaluation-criteria/2
 
 ## Project development
 We decide to implement this project by using "One hundre layers Tiramisu", for more details, you may want to read the [report](./Report.pdf)
+
+
+# Visualization Bug
+Due to some Matplotlib dependency, the visualization of the predicted mask may result bugged in local machine, causing that the dimension of the image is different to the dimension of the predicted mask, as the follow:  
+![Bugged mask visualization](./image/bugged.png)  
+Meanwhile, on Colab (where the model is trained) the visualization is correct as follow:  
+![Correct mask visualization](./image/normal.png)  
