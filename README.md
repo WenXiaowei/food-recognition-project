@@ -20,6 +20,17 @@ See also this [discussion](https://discourse.aicrowd.com/t/evaluation-criteria/2
 ## Project development
 We decide to implement this project by using "One hundre layers Tiramisu", for more details, you may want to read the [report](./Report.pdf)
 
+# Setup 
+In order to make be able to run the project jupyter notebook, you should have the data set in the folder containing the script organized in this way:  
+├───annotations  
+├───images  
+│   ├───test  
+│   ├───train  
+│   └───val  
+├─── weights  
+├─── script file  
+├─── other files  
+
 
 # Visualization Bug
 Due to some Matplotlib dependency, the visualization of the predicted mask may result bugged in local machine, causing that the dimension of the image is different to the dimension of the predicted mask, as the follow:  
