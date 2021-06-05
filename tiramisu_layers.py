@@ -1,5 +1,5 @@
 from tensorflow.keras.layers import Conv2D, BatchNormalization, Dropout, MaxPool2D, \
-    Conv2DTranspose, concatenate, Activation, Cropping2D, ZeroPadding2D
+    Conv2DTranspose, concatenate, Activation, Cropping2D,Reshape
 
 import tensorflow as tf
 
@@ -13,6 +13,7 @@ def layer(inputs, n_filters, filter_size=3, dropout_p=0.2):
     :param dropout_p: the DropOut of the DropOut layer
     :return: the block of layers [BatchNormalization, ReLu, Conv2D, Dropout]
     """
+    # tf.shape(inputs)
 
     l = BatchNormalization()(inputs)
     l = Activation("relu")(l)
@@ -48,16 +49,10 @@ def transition_up(skip_connection, block_to_up_sample, n_filters_keep):
     l = Conv2DTranspose(n_filters_keep, kernel_size=3, strides=2, kernel_initializer="he_uniform")(l)
 
     if l.type_spec.shape[1] != skip_connection.type_spec.shape[1]:
-        diff = abs(l.type_spec.shape[1] - skip_connection.type_spec.shape[1])
-
-        if diff % 2 == 0:
-            diff = int(diff / 2)
-            skip_connection = ZeroPadding2D(padding=((diff, diff), (diff, diff)))(skip_connection)
-        else:
-            diff = int((diff + 1) / 2)
-            skip_connection = ZeroPadding2D(padding=((diff - 1, diff), (diff - 1, diff)))(skip_connection)
-
+        l = Cropping2D(cropping=((0, 1), (0, 1)))(l)
+        
     return concatenate([l, skip_connection], axis=-1)  # cropping=[None, None, 'center', 'center']
+
 
 
 def soft_max(inputs, n_classes):
@@ -68,4 +63,8 @@ def soft_max(inputs, n_classes):
     :return: the block of layer [Conv2D (1x1), Activation(softmax)]
     """
     net_layer = Conv2D(n_classes, kernel_size=1, padding="same", kernel_initializer="he_uniform")(inputs)
+    # print(net_layer.type_spec.shape)
+    _ , bacth_size, n_rows, n_cols = net_layer.type_spec.shape
+
+    netlayer = Reshape((bacth_size * n_rows * n_cols,),input_shape=net_layer.type_spec.shape)
     return Activation("softmax")(net_layer)

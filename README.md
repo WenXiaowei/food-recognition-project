@@ -32,8 +32,3 @@ In order to make be able to run the project jupyter notebook, you should have th
 ├─── other files  
 
 
-# Visualization Bug
-Due to some Matplotlib dependency, the visualization of the predicted mask may result bugged in local machine, causing that the dimension of the image is different to the dimension of the predicted mask, as the follow:  
-![Bugged mask visualization](./image/bugged.png)  
-Meanwhile, on Colab (where the model is trained) the visualization is correct as follow:  
-![Correct mask visualization](./image/normal.png)  
